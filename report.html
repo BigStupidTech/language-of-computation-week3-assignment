@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Book delivery report</title>
+<style>body{font:16px system-ui,sans-serif;max-width:1100px;margin:32px auto;padding:0 20px;color:#20252a}button{padding:10px 16px;font:inherit;cursor:pointer}article{border-top:2px solid #aaa;margin-top:28px;padding-top:12px}table{border-collapse:collapse;width:100%;margin:14px 0}td,th{text-align:left;border:1px solid #ccc;padding:8px;vertical-align:top;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f3f4;padding:12px}.failed{color:#a11}summary{cursor:pointer;padding:8px}small{color:#555}</style>
+<h1>Book delivery report</h1><p>Open the log from your assignment folder. Everything stays on this computer.</p>
+<button id="open">Open ingestion-log.json</button><input id="file" type="file" accept=".json,application/json" hidden>
+<p id="message" role="status">No log opened yet.</p><main id="runs"></main>
+<script>
+const el=(tag,text,parent)=>{const x=document.createElement(tag);if(text!==undefined)x.textContent=text;if(parent)parent.append(x);return x};
+document.querySelector('#open').onclick=()=>document.querySelector('#file').click();
+function numbers(c,parent){const t=el('table',undefined,parent),h=el('tr',undefined,t),r=el('tr',undefined,t);for(const [k,label] of Object.entries({read:'Read',loaded:'Loaded (inserted)',updated:'Updated',skipped:'Skipped (unchanged)',rejected:'Rejected',warning_rows:'With warnings',repair_rows:'With repairs'})){el('th',label,h);el('td',String(c?.[k]??0),r)}}
+document.querySelector('#file').onchange=async event=>{const root=document.querySelector('#runs'),msg=document.querySelector('#message');root.replaceChildren();try{const f=event.target.files[0];if(!f)return;const data=JSON.parse(await f.text());if(!Array.isArray(data)||data.some(r=>!r||!Array.isArray(r.files)||!r.counts))throw Error('Expected an array of ingestion run entries.');msg.textContent=`${data.length} runs. Newest first. Warning and repair counts overlap the outcomes.`;
+for(const run of [...data].reverse()){const a=el('article',undefined,root);el('h2',`${run.when} — ${run.status}`,a);if(run.error)el('p',run.error,a).className='failed';numbers(run.counts,a);el('p',`Catalog books: ${run.book_count_before} before, ${run.book_count_after} after.`,a);
+for(const file of run.files){el('h3',file.file,a);el('small',`SHA-256: ${file.sha256??'Unavailable'}`,a);numbers(file.counts,a);const rows=file.rows??[];const notloaded=rows.filter(r=>r.outcome==='skipped'||r.outcome==='rejected');el('p',`${notloaded.length} rows not loaded (unchanged or rejected). Updates are counted separately.`,a);
+for(const row of rows.filter(r=>r.outcome!=='loaded'||r.warnings?.length||r.repairs?.length)){const d=el('details',undefined,a);el('summary',`Row ${row.record} · ID ${row.supplier_id} · ${row.title} · ${row.outcome}`,d);el('p',row.reason,d);if(row.next_action)el('p','Next: '+row.next_action,d);el('pre',JSON.stringify({original_values:row.raw,interpreted_ISBNs:row.interpreted,warnings:row.warnings,repairs:row.repairs,changes:row.changes},null,2),d)}}}}
+catch(e){msg.textContent='Could not open log: '+e.message}};
+</script></html>
